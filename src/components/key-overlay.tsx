@@ -1,4 +1,5 @@
 import { easeInQuint, easeOutQuint } from "@/lib/utils";
+import { getCaption } from "@/lib/captions";
 import { useKeyEvent } from "@/stores/key_event";
 import { useKeyStyle } from "@/stores/key_style";
 import { alignmentForColumn, alignmentForRow } from "@/types/style";
@@ -21,6 +22,7 @@ export const KeyOverlay = () => {
     const text = useKeyStyle(state => state.text);
     const border = useKeyStyle(state => state.border);
     const background = useKeyStyle(state => state.background);
+    const showCaptions = useKeyStyle(state => state.layout.showCaptions);
 
     const alignment = appearance.flexDirection === "row"
         ? alignmentForRow[appearance.alignment]
@@ -45,6 +47,22 @@ export const KeyOverlay = () => {
             borderRadius: border.radius * (text.size * 1.75),
         }),
     }
+
+    // 캡션(단축키 라벨)을 키캡 아래 세로로 배치하기 위한 래퍼/텍스트 스타일
+    const captionGroupStyle = {
+        display: "flex",
+        flexDirection: "column" as const,
+        alignItems: "center" as const,
+        rowGap: text.size * 0.15,
+    };
+
+    const captionStyle = {
+        fontSize: text.size * 0.4,
+        color: text.color,
+        fontWeight: 600,
+        lineHeight: 1,
+        whiteSpace: "nowrap" as const,
+    };
 
     const variants = useMemo<Variants>(() => {
         switch (appearance.animation) {
@@ -76,22 +94,27 @@ export const KeyOverlay = () => {
     if (appearance.animation === "none") {
         return (
             <div className="w-full h-full flex" style={containerStyle}>
-                {groups.map((group, groupIndex) => (
-                    <div
-                        key={group.createdAt}
-                        style={groupStyle}
-                        className={background.enabled ? "overflow-hidden" : ""}
-                    >
-                        {group.keys.map((event, keyIndex) => (
-                            <Keycap
-                                key={event.name}
-                                event={event}
-                                lastest={group.keys.length - 1 === keyIndex}
-                                isPressed={groups.length - 1 === groupIndex && event.in(pressedKeys)}
-                            />
-                        ))}
-                    </div>
-                ))}
+                {groups.map((group, groupIndex) => {
+                    const caption = showCaptions ? getCaption(group.keys) : null;
+                    return (
+                        <div key={group.createdAt} style={captionGroupStyle}>
+                            <div
+                                style={groupStyle}
+                                className={background.enabled ? "overflow-hidden" : ""}
+                            >
+                                {group.keys.map((event, keyIndex) => (
+                                    <Keycap
+                                        key={event.name}
+                                        event={event}
+                                        lastest={group.keys.length - 1 === keyIndex}
+                                        isPressed={groups.length - 1 === groupIndex && event.in(pressedKeys)}
+                                    />
+                                ))}
+                            </div>
+                            {caption && <div style={captionStyle}>{caption}</div>}
+                        </div>
+                    );
+                })}
             </div>
         );
     }
@@ -99,46 +122,64 @@ export const KeyOverlay = () => {
     return (
         <div className="w-full h-full flex" style={containerStyle}>
             <AnimatePresence>
-                {groups.map((group, groupIndex) => (
-                    <motion.div
-                        key={group.createdAt}
-                        layout={showHistory ? "position" : false}
-                        variants={fadeVariants}
-                        initial="hidden"
-                        animate="visible"
-                        exit="hidden"
-                        style={groupStyle}
-                        className={background.enabled ? "overflow-hidden" : ""}
-                        transition={{
-                            ease: [easeOutQuint, easeInQuint],
-                            duration: showHistory ? appearance.animationDuration : 0
-                        }}
-                    >
-                        <AnimatePresence>
-                            {group.keys.map((event, keyIndex) => (
+                {groups.map((group, groupIndex) => {
+                    const caption = showCaptions ? getCaption(group.keys) : null;
+                    return (
+                        <motion.div
+                            key={group.createdAt}
+                            layout={showHistory ? "position" : false}
+                            variants={fadeVariants}
+                            initial="hidden"
+                            animate="visible"
+                            exit="hidden"
+                            style={captionGroupStyle}
+                            transition={{
+                                ease: [easeOutQuint, easeInQuint],
+                                duration: showHistory ? appearance.animationDuration : 0
+                            }}
+                        >
+                            <div
+                                style={groupStyle}
+                                className={background.enabled ? "overflow-hidden" : ""}
+                            >
+                                <AnimatePresence>
+                                    {group.keys.map((event, keyIndex) => (
+                                        <motion.div
+                                            key={event.name}
+                                            layout="position"
+                                            variants={variants}
+                                            initial="hidden"
+                                            animate="visible"
+                                            exit="hidden"
+                                            transition={{
+                                                ease: [easeOutQuint, easeInQuint],
+                                                duration: appearance.animationDuration,
+                                                layout: { duration: appearance.animationDuration / 3, ease: easeOutQuint },
+                                            }}
+                                        >
+                                            <Keycap
+                                                event={event}
+                                                lastest={group.keys.length - 1 === keyIndex}
+                                                isPressed={groups.length - 1 === groupIndex && event.in(pressedKeys)}
+                                            />
+                                        </motion.div>
+                                    ))}
+                                </AnimatePresence>
+                            </div>
+                            {caption && (
                                 <motion.div
-                                    key={event.name}
-                                    layout="position"
-                                    variants={variants}
+                                    variants={fadeVariants}
                                     initial="hidden"
                                     animate="visible"
                                     exit="hidden"
-                                    transition={{
-                                        ease: [easeOutQuint, easeInQuint],
-                                        duration: appearance.animationDuration,
-                                        layout: { duration: appearance.animationDuration / 3, ease: easeOutQuint },
-                                    }}
+                                    style={captionStyle}
                                 >
-                                    <Keycap
-                                        event={event}
-                                        lastest={group.keys.length - 1 === keyIndex}
-                                        isPressed={groups.length - 1 === groupIndex && event.in(pressedKeys)}
-                                    />
+                                    {caption}
                                 </motion.div>
-                            ))}
-                        </AnimatePresence>
-                    </motion.div>
-                ))}
+                            )}
+                        </motion.div>
+                    );
+                })}
             </AnimatePresence>
         </div>
     );

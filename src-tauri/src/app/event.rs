@@ -2,9 +2,26 @@ use std::{sync::Mutex, thread};
 
 use rdev::{listen, Button, EventType};
 use serde::Serialize;
-use tauri::{menu::MenuItem, AppHandle, Emitter, Manager, Wry};
+use tauri::{menu::MenuItem, AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, Wry};
 
 use crate::app::state::AppState;
+
+// macOS: 비밀번호 등 보안 입력 필드 포커스 시 키 시각화를 억제하기 위한 판정
+#[cfg(target_os = "macos")]
+#[link(name = "Carbon", kind = "framework")]
+extern "C" {
+    fn IsSecureEventInputEnabled() -> u8;
+}
+
+#[cfg(target_os = "macos")]
+fn is_secure_input() -> bool {
+    unsafe { IsSecureEventInputEnabled() != 0 }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn is_secure_input() -> bool {
+    false
+}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type")]
@@ -29,6 +46,56 @@ pub fn map_mouse_button(button: Button) -> MouseButton {
         Button::Right => MouseButton::Right,
         Button::Middle => MouseButton::Middle,
         _ => MouseButton::Other,
+    }
+}
+
+// 커서가 현재 모니터를 벗어났으면 창을 커서가 있는 모니터로 옮기고 상태를 갱신한다.
+// rdev 좌표는 좌표계(논리/물리)가 불명확하므로 쓰지 않고, Tauri 물리 좌표
+// (cursor_position)로 판정한다. 모니터 목록은 매번 라이브로 조회해 구성 변경에 대응한다.
+fn reposition_if_needed(app_handle: &AppHandle, app_state: &mut AppState) {
+    // Tauri 물리 좌표계의 커서 위치 (모니터 좌표와 동일 공간)
+    let cursor = match app_handle.cursor_position() {
+        Ok(p) => p,
+        Err(_) => return,
+    };
+    let (mx, my) = (cursor.x as i32, cursor.y as i32);
+
+    let (px, py) = app_state.monitor_position;
+    let (sw, sh) = app_state.monitor_size;
+    let inside = sw > 0
+        && sh > 0
+        && mx >= px
+        && mx < px + sw as i32
+        && my >= py
+        && my < py + sh as i32;
+    if inside {
+        return;
+    }
+
+    if let Some(window) = app_handle.get_webview_window("main") {
+        if let Ok(monitors) = window.available_monitors() {
+            let target = monitors.iter().find(|m| {
+                let pos = m.position();
+                let size = m.size();
+                mx >= pos.x
+                    && mx < pos.x + size.width as i32
+                    && my >= pos.y
+                    && my < pos.y + size.height as i32
+            });
+            if let Some(monitor) = target {
+                let pos = monitor.position();
+                let size = monitor.size();
+                app_state.monitor_name = monitor.name().cloned();
+                app_state.monitor_scale = monitor.scale_factor();
+                app_state.monitor_position = (pos.x, pos.y);
+                app_state.monitor_size = (size.width, size.height);
+                let _ = window.set_position(PhysicalPosition { x: pos.x, y: pos.y });
+                let _ = window.set_size(PhysicalSize {
+                    width: size.width,
+                    height: size.height,
+                });
+            }
+        }
     }
 }
 
@@ -87,6 +154,14 @@ pub fn start_listener(app_handle: AppHandle, toggle_menu_item: MenuItem<Wry>) {
             if !app_state.listening {
                 return;
             }
+
+            // 활성 모니터 따라가기: 커서가 현재 모니터 밖으로 나가면 창을 그 모니터로 이동
+            if app_state.follow_cursor {
+                if let EventType::MouseMove { .. } = event.event_type {
+                    reposition_if_needed(&app_handle, &mut app_state);
+                }
+            }
+
             let input_event = match event.event_type {
                 EventType::KeyPress(key) => Some(InputEvent::KeyEvent {
                     pressed: true,
@@ -128,7 +203,10 @@ pub fn start_listener(app_handle: AppHandle, toggle_menu_item: MenuItem<Wry>) {
                 }
             };
 
-            app_handle.emit("input-event", input_event).unwrap();
+            // 보안 입력(비밀번호창 등) 중에는 키를 시각화하지 않는다
+            if !is_secure_input() {
+                app_handle.emit("input-event", input_event).unwrap();
+            }
         }) {
             eprintln!("rdev listen failed: {:?}", err);
         }

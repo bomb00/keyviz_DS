@@ -1,7 +1,7 @@
 import { KeyOverlay } from "@/components/key-overlay";
 import { MouseOverlay } from "@/components/mouse-overlay";
 import { KEY_EVENT_STORE, KeyEventStore, useKeyEvent } from "@/stores/key_event";
-import { KEY_STYLE_STORE, KeyStyleStore, useKeyStyle } from '@/stores/key_style';
+import { FOLLOW_CURSOR_MONITOR, KEY_STYLE_STORE, KeyStyleStore, useKeyStyle } from '@/stores/key_style';
 import { listenForUpdates } from '@/stores/sync';
 import { EventPayload } from "@/types/event";
 import { invoke } from "@tauri-apps/api/core";
@@ -39,15 +39,20 @@ export function Visualization() {
   }, []);
 
   useEffect(() => {
-    const set_monitor = async () => {
-      if (!monitor) return;
+    const applyMonitor = async () => {
       try {
-        await invoke("set_main_window_monitor", { monitorName: monitor });
+        if (monitor === FOLLOW_CURSOR_MONITOR) {
+          // 활성 모니터(커서 따라가기) 모드
+          await invoke("set_follow_cursor", { enabled: true });
+        } else {
+          await invoke("set_follow_cursor", { enabled: false });
+          if (monitor) await invoke("set_main_window_monitor", { monitorName: monitor });
+        }
       } catch (error) {
         console.error("Failed to set monitor:", error);
       }
     }
-    set_monitor();
+    applyMonitor();
   }, [monitor]);
 
   if (!isListening) return null;

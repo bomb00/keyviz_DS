@@ -196,6 +196,16 @@ export const MODIFIERS = new Set<string>([
   RawKey.Function,
 ]);
 
+// 단축키를 '트리거'하는 수식키 (Shift 제외). modifiers 필터의 단축키 판정에 사용
+export const TRIGGER_MODIFIERS = new Set<string>([
+  RawKey.ControlLeft,
+  RawKey.ControlRight,
+  RawKey.Alt,
+  RawKey.MetaLeft,
+  RawKey.MetaRight,
+  RawKey.Function,
+]);
+
 export class KeyEvent {
   name: string;
   pressedCount: number;

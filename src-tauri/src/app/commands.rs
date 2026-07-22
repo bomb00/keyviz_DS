@@ -1,6 +1,7 @@
 use std::sync::Mutex;
 
 use tauri::{Manager, PhysicalPosition, PhysicalSize};
+use tauri_plugin_store::StoreExt;
 
 use crate::app::state::AppState;
 
@@ -38,6 +39,7 @@ pub fn set_main_window_monitor(app: tauri::AppHandle, monitor_name: String) {
             app_state.monitor_name = Some(monitor_name.clone());
             app_state.monitor_scale = scale;
             app_state.monitor_position = (position.x, position.y);
+            app_state.monitor_size = (size.width, size.height);
 
             // Update window
             window
@@ -54,4 +56,36 @@ pub fn set_main_window_monitor(app: tauri::AppHandle, monitor_name: String) {
                 .unwrap_or(());
         }
     }
+}
+
+// 활성 모니터 따라가기(커서가 있는 모니터에 표시) on/off
+#[tauri::command]
+pub fn set_follow_cursor(app: tauri::AppHandle, enabled: bool) {
+    let state = app.state::<Mutex<AppState>>();
+    let mut app_state = state.lock().unwrap();
+    app_state.follow_cursor = enabled;
+}
+
+#[tauri::command]
+pub fn get_dock_icon_visibility(app: tauri::AppHandle) -> bool {
+    app.store("store.json")
+        .ok()
+        .and_then(|store| store.get("show_dock_icon"))
+        .and_then(|value| value.as_bool())
+        .unwrap_or(true)
+}
+
+#[tauri::command]
+pub fn set_dock_icon_visibility(app: tauri::AppHandle, visible: bool) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    app.set_activation_policy(if visible {
+        tauri::ActivationPolicy::Regular
+    } else {
+        tauri::ActivationPolicy::Accessory
+    })
+    .map_err(|error| error.to_string())?;
+
+    let store = app.store("store.json").map_err(|error| error.to_string())?;
+    store.set("show_dock_icon", visible);
+    store.save().map_err(|error| error.to_string())
 }

@@ -1,10 +1,8 @@
 import { keymaps } from "@/lib/keymaps";
-import { easeInOutExpo } from "@/lib/utils";
 import { useKeyStyle } from "@/stores/key_style";
-import { motion } from "motion/react";
 import type { KeycapProps } from ".";
 
-export const MinimalKeycap = ({ event, isPressed }: KeycapProps) => {
+export const MinimalKeycap = ({ event }: KeycapProps) => {
     const text = useKeyStyle((state) => state.text);
     const modifier = useKeyStyle((state) => state.modifier);
     const layout = useKeyStyle((state) => state.layout);
@@ -37,13 +35,11 @@ export const MinimalKeycap = ({ event, isPressed }: KeycapProps) => {
     }
 
     return (
-        <motion.div
-            animate={{ scale: isPressed ? 0.95 : 1 }}
-            transition={{ ease: easeInOutExpo, duration: 0.1 }}
+        <div
             className="flex items-center h-full"
             style={textStyle}
         >
             {child}
-        </motion.div>
+        </div>
     );
 };

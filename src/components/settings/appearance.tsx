@@ -7,7 +7,7 @@ import { NumberScrubber } from "@/components/ui/number-input-scrub";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Toggle } from "@/components/ui/toggle";
 import { useKeyEvent } from "@/stores/key_event";
-import { useKeyStyle } from "@/stores/key_style";
+import { FOLLOW_CURSOR_MONITOR, useKeyStyle } from "@/stores/key_style";
 import { ComputerIcon, KeyframesDoubleIcon, KeyframesDoubleRemoveIcon, Link02Icon, ParagraphSpacingIcon, TextAlignLeftIcon, Time03Icon, Unlink02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { availableMonitors, Monitor } from "@tauri-apps/api/window";
@@ -60,6 +60,9 @@ export const AppearanceSettings = () => {
                         </SelectTrigger>
                         <SelectContent>
                             <SelectGroup>
+                                <SelectItem value={FOLLOW_CURSOR_MONITOR}>
+                                    Active display (follow cursor)
+                                </SelectItem>
                                 {
                                     monitors.map((monitor, index) => (
                                         <SelectItem key={monitor.name} value={monitor.name ?? index.toString()}>

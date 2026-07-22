@@ -1,4 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
+import { disable as disableAutostart, enable as enableAutostart, isEnabled as isAutostartEnabled } from '@tauri-apps/plugin-autostart';
+import { type } from '@tauri-apps/plugin-os';
+import { useEffect, useState } from 'react';
 
 import { ShortcutRecorder } from '@/components/shortcut-recorder';
 import { Button } from '@/components/ui/button';
@@ -17,7 +20,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { cn } from "@/lib/utils";
 import { KeyEventState, useKeyEvent } from "@/stores/key_event";
 import { KeyStyleState, useKeyStyle } from "@/stores/key_style";
-import { ArrowHorizontalIcon, ArrowVerticalIcon, FilterHorizontalIcon, FilterIcon, LayerIcon, ToggleOnIcon } from "@hugeicons/core-free-icons";
+import { ArrowHorizontalIcon, ArrowVerticalIcon, FilterHorizontalIcon, FilterIcon, LayerIcon, SubtitleIcon, ToggleOnIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { CustomFilter } from '../custom-filter';
 
@@ -33,6 +36,36 @@ export const GeneralSettings = () => {
 
     const direction = useKeyStyle(state => state.appearance.flexDirection);
     const setAppearance = useKeyStyle(state => state.setAppearance);
+    const showCaptions = useKeyStyle(state => state.layout.showCaptions);
+    const setLayout = useKeyStyle(state => state.setLayout);
+
+    // 로그인 시 자동 시작 상태를 OS(LaunchAgent)에서 읽어와 토글로 반영
+    const [autostartEnabled, setAutostartEnabled] = useState(false);
+    const [dockIconVisible, setDockIconVisible] = useState(true);
+    useEffect(() => {
+        isAutostartEnabled().then(setAutostartEnabled).catch(() => { });
+        if (type() === 'macos') {
+            invoke<boolean>('get_dock_icon_visibility').then(setDockIconVisible).catch(() => { });
+        }
+    }, []);
+    const toggleAutostart = async (checked: boolean) => {
+        try {
+            if (checked) await enableAutostart();
+            else await disableAutostart();
+            setAutostartEnabled(checked);
+        } catch (error) {
+            console.error('Failed to toggle autostart:', error);
+        }
+    };
+
+    const toggleDockIcon = async (checked: boolean) => {
+        try {
+            await invoke('set_dock_icon_visibility', { visible: checked });
+            setDockIconVisible(checked);
+        } catch (error) {
+            console.error('Failed to toggle Dock icon:', error);
+        }
+    };
 
     return <div className="flex flex-col gap-y-4 p-6">
         <h1 className="text-xl font-semibold">General</h1>
@@ -79,6 +112,20 @@ export const GeneralSettings = () => {
                     <ToggleGroupItem value="modifiers" aria-label="Modifiers Only">Hotkeys</ToggleGroupItem>
                     <ToggleGroupItem value="custom" aria-label="Custom Filter">Custom</ToggleGroupItem>
                 </ToggleGroup>
+            </ItemActions>
+        </Item>
+
+        <Item variant="muted">
+            <ItemContent>
+                <ItemTitle>
+                    <HugeiconsIcon icon={SubtitleIcon} size="1em" /> Shortcut Captions
+                </ItemTitle>
+                <ItemDescription>
+                    Show a label under recognized shortcuts (e.g. ⌘C → Copy)
+                </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+                <Switch checked={showCaptions} onCheckedChange={(v) => setLayout({ showCaptions: v })} />
             </ItemActions>
         </Item>
 
@@ -144,5 +191,33 @@ export const GeneralSettings = () => {
                 }} />
             </ItemContent>
         </Item>
+
+        <Item variant="muted">
+            <ItemContent>
+                <ItemTitle>
+                    <HugeiconsIcon icon={ToggleOnIcon} size="1em" /> Start on Login
+                </ItemTitle>
+                <ItemDescription>
+                    Launch Keyviz automatically when you log in
+                </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+                <Switch checked={autostartEnabled} onCheckedChange={toggleAutostart} />
+            </ItemActions>
+        </Item>
+
+        {type() === 'macos' && <Item variant="muted">
+            <ItemContent>
+                <ItemTitle>
+                    <HugeiconsIcon icon={ToggleOnIcon} size="1em" /> Show in Dock
+                </ItemTitle>
+                <ItemDescription>
+                    Show the Keyviz app icon in the Dock
+                </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+                <Switch checked={dockIconVisible} onCheckedChange={toggleDockIcon} />
+            </ItemActions>
+        </Item>}
     </div>;
 }

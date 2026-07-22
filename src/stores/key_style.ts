@@ -9,6 +9,9 @@ import { toast } from "sonner";
 
 export const KEY_STYLE_STORE = "key_style_store";
 
+// appearance.monitor 가 이 값이면 '활성 모니터(커서 따라가기)' 모드를 의미한다
+export const FOLLOW_CURSOR_MONITOR = "__cursor__";
+
 export interface AppearanceSettings {
     monitor: string | null;
     flexDirection: "row" | "column";
@@ -24,6 +27,7 @@ export interface LayoutSettings {
     showIcon: boolean;
     showSymbol: boolean;
     showPressCount: boolean;
+    showCaptions: boolean;
     iconAlignment: "flex-start" | "center" | "flex-end";
 }
 
@@ -116,6 +120,7 @@ const createKeyStyleStore = createSyncedStore<KeyStyleStore>(
             showIcon: true,
             showSymbol: true,
             showPressCount: true,
+            showCaptions: true,
             iconAlignment: "flex-end",
         },
         color: {

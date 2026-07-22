@@ -1,4 +1,4 @@
-import { EventPayload, KeyEvent, MappedKeys, MODIFIERS, MouseButton, MouseButtonEvent, MouseMoveEvent, MouseWheelEvent, RawKey, RawKeyEvent } from "@/types/event";
+import { EventPayload, KeyEvent, MappedKeys, MouseButton, MouseButtonEvent, MouseMoveEvent, MouseWheelEvent, RawKey, RawKeyEvent, TRIGGER_MODIFIERS } from "@/types/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { tauriStorage } from "./storage";
@@ -212,7 +212,9 @@ const createKeyEventStore = createSyncedStore<KeyEventStore>(
         ignoreEvent(pressedKeys) {
             const state = get();
             if (state.filter === "modifiers") {
-                return !MODIFIERS.has(pressedKeys[0]);
+                // 트리거 수식키(⌘/⌃/⌥/fn)가 있을 때만 단축키로 간주해 표시한다.
+                // Shift는 트리거가 아니므로 Shift+문자(대문자·기호) 타이핑은 숨겨진다.
+                return !pressedKeys.some((key) => TRIGGER_MODIFIERS.has(key));
             }
             else if (state.filter === "custom") {
                 return !state.allowedKeys.includes(pressedKeys[0]);

@@ -11,6 +11,8 @@ pub struct AppState {
     pub monitor_name: Option<String>,
     pub monitor_scale: f64,
     pub monitor_position: (i32, i32),
+    pub monitor_size: (u32, u32),
+    pub follow_cursor: bool,
 }
 
 impl AppState {
@@ -40,6 +42,8 @@ impl AppState {
             monitor_name: None,
             monitor_scale: 1.0,
             monitor_position: (0, 0),
+            monitor_size: (0, 0),
+            follow_cursor: false,
         }
     }
     pub fn toggle_listener(&mut self, app: &tauri::AppHandle, toggle: &tauri::menu::MenuItem<Wry>) {
