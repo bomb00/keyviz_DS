@@ -35,6 +35,7 @@ export interface KeyEventState {
     showEventHistory: boolean;
     maxHistory: number;
     lingerDurationMs: number;
+    releaseTogether: boolean;
     toggleShortcut: string[];
 }
 
@@ -47,6 +48,7 @@ interface KeyEventActions {
     setMaxHistory(value: KeyEventState["maxHistory"]): void;
     // setShowMouseEvents(value: KeyEventState["showMouseEvents"]): void;
     setLingerDurationMs(value: KeyEventState["lingerDurationMs"]): void;
+    setReleaseTogether(value: KeyEventState["releaseTogether"]): void;
     setToggleShortcut(value: KeyEventState["toggleShortcut"]): void;
     // ───────────── event actions ─────────────
     onEvent(event: EventPayload): void;
@@ -81,6 +83,7 @@ const createKeyEventStore = createSyncedStore<KeyEventStore>(
         showEventHistory: false,
         maxHistory: 5,
         lingerDurationMs: 5_000,
+        releaseTogether: true,
         toggleShortcut: [RawKey.ShiftLeft, RawKey.F10],
 
         setDragThreshold(value: number) {
@@ -100,6 +103,9 @@ const createKeyEventStore = createSyncedStore<KeyEventStore>(
         },
         setLingerDurationMs(value: number) {
             set({ lingerDurationMs: value });
+        },
+        setReleaseTogether(value: boolean) {
+            set({ releaseTogether: value });
         },
         setToggleShortcut(value: string[]) {
             set({ toggleShortcut: value });
@@ -135,6 +141,7 @@ const createKeyEventStore = createSyncedStore<KeyEventStore>(
         },
         onKeyPress(event: RawKeyEvent) {
             const state = get();
+            const wasIgnored = state.filter !== "none" && state.ignoreEvent(state.pressedKeys);
             // 0. track physical state
             const pressedKeys = [...state.pressedKeys];
             pressedKeys.push(event.name);
@@ -148,6 +155,20 @@ const createKeyEventStore = createSyncedStore<KeyEventStore>(
             let groups = [...state.groups];
             const last = groups.length - 1;
             const key = new KeyEvent(event.name);
+
+            // 숨겨진 수식키가 먼저 눌렸다면 현재 눌린 키 전체로 표시를 시작한다.
+            if (wasIgnored) {
+                const group = {
+                    keys: pressedKeys.map(keyName => new KeyEvent(keyName)),
+                    createdAt: state.showEventHistory ? Date.now() : 0
+                };
+                groups = state.showEventHistory ? [...groups, group] : [group];
+                if (state.showEventHistory && groups.length > state.maxHistory) {
+                    groups = groups.slice(groups.length - state.maxHistory);
+                }
+                set({ pressedKeys, groups });
+                return;
+            }
 
             // 2. check if pressed again
             const existingKey = last >= 0 ? groups[last].keys.find(gKey => gKey.name === key.name) : undefined;
@@ -231,8 +252,17 @@ const createKeyEventStore = createSyncedStore<KeyEventStore>(
             const last = groups.length - 1;
 
             const kIndex = last >= 0 ? groups[last].keys.findIndex(key => key.name === event.name) : undefined;
-            if (kIndex && kIndex >= 0) {
-                groups[last].keys[kIndex].lastPressedAt = Date.now();
+            if (kIndex !== undefined && kIndex >= 0) {
+                const releasedAt = Date.now();
+                const hasPressedKey = groups[last].keys.some(key => pressedKeys.includes(key.name));
+
+                if (state.releaseTogether && !hasPressedKey) {
+                    groups[last].keys.forEach(key => {
+                        key.lastPressedAt = releasedAt;
+                    });
+                } else if (!state.releaseTogether) {
+                    groups[last].keys[kIndex].lastPressedAt = releasedAt;
+                }
                 set({ pressedKeys, groups });
             } else {
                 set({ pressedKeys });
@@ -374,7 +404,8 @@ const createKeyEventStore = createSyncedStore<KeyEventStore>(
 
             // remove keys that have exceeded linger duration
             for (const group of state.groups) {
-                const updatedKeys = group.keys.filter((key) => {
+                const hasPressedKey = group.keys.some(key => state.pressedKeys.includes(key.name));
+                const updatedKeys = state.releaseTogether && hasPressedKey ? group.keys : group.keys.filter((key) => {
                     // keep key if
                     return (
                         // is pressed
@@ -382,7 +413,7 @@ const createKeyEventStore = createSyncedStore<KeyEventStore>(
                         // within linger duration 
                         now - key.lastPressedAt < state.lingerDurationMs
                     );
-                })
+                });
                 if (updatedKeys.length !== group.keys.length) {
                     notify = true;
                 }

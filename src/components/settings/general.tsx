@@ -31,6 +31,7 @@ export const GeneralSettings = () => {
         allowedKeys,
         showEventHistory, setShowEventHistory,
         maxHistory, setMaxHistory,
+        releaseTogether, setReleaseTogether,
         toggleShortcut, setToggleShortcut
     } = useKeyEvent();
 
@@ -112,6 +113,20 @@ export const GeneralSettings = () => {
                     <ToggleGroupItem value="modifiers" aria-label="Modifiers Only">Hotkeys</ToggleGroupItem>
                     <ToggleGroupItem value="custom" aria-label="Custom Filter">Custom</ToggleGroupItem>
                 </ToggleGroup>
+            </ItemActions>
+        </Item>
+
+        <Item variant="muted">
+            <ItemContent>
+                <ItemTitle>
+                    <HugeiconsIcon icon={LayerIcon} size="1em" /> Keep Shortcut Together
+                </ItemTitle>
+                <ItemDescription>
+                    Keep the full shortcut visible until the last key is released
+                </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+                <Switch checked={releaseTogether} onCheckedChange={setReleaseTogether} />
             </ItemActions>
         </Item>
 

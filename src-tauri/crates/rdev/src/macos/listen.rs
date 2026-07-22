@@ -7,6 +7,7 @@ use core_graphics::event::{CGEventTapLocation, CGEventType};
 use std::os::raw::c_void;
 
 static mut GLOBAL_CALLBACK: Option<Box<dyn FnMut(Event)>> = None;
+static mut EVENT_TAP: CFMachPortRef = std::ptr::null();
 
 unsafe extern "C" fn raw_callback(
     _proxy: CGEventTapProxy,
@@ -14,6 +15,16 @@ unsafe extern "C" fn raw_callback(
     cg_event: CGEventRef,
     _user_info: *mut c_void,
 ) -> CGEventRef {
+    if matches!(
+        _type,
+        CGEventType::TapDisabledByTimeout | CGEventType::TapDisabledByUserInput
+    ) {
+        if !EVENT_TAP.is_null() {
+            CGEventTapEnable(EVENT_TAP, true);
+        }
+        return cg_event;
+    }
+
     // println!("Event ref {:?}", cg_event_ptr);
     // let cg_event: CGEvent = transmute_copy::<*mut c_void, CGEvent>(&cg_event_ptr);
     if let Ok(mut state) = KEYBOARD_STATE.lock() {
@@ -54,6 +65,7 @@ where
         if tap.is_null() {
             return Err(ListenError::EventTapError);
         }
+        EVENT_TAP = tap;
         let _loop = CFMachPortCreateRunLoopSource(nil, tap, 0);
         if _loop.is_null() {
             return Err(ListenError::LoopSourceError);

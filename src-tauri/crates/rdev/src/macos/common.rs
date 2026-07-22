@@ -4,7 +4,7 @@ use crate::macos::keyboard::Keyboard;
 use crate::rdev::{Button, Event, EventType, Key};
 use cocoa::base::id;
 use core_graphics::{
-    event::{CGEvent, CGEventFlags, CGEventTapLocation, CGEventType, CGKeyCode, EventField},
+    event::{CGEvent, CGEventTapLocation, CGEventType, CGKeyCode, EventField},
     event_source::CGEventSourceStateID,
 };
 use lazy_static::lazy_static;
@@ -52,7 +52,6 @@ pub enum CGEventTapOption {
     ListenOnly = 1,
 }
 
-pub static mut LAST_FLAGS: CGEventFlags = CGEventFlags::CGEventFlagNull;
 lazy_static! {
     pub static ref KEYBOARD_STATE: Mutex<Option<Keyboard>> = Mutex::new(Keyboard::new());
 }
@@ -206,13 +205,30 @@ pub unsafe fn convert(
         }
         CGEventType::FlagsChanged => {
             code = get_code(cg_event)?;
-            let flags = cg_event.get_flags();
-            if flags < LAST_FLAGS {
-                LAST_FLAGS = flags;
-                Some(EventType::KeyRelease(key_from_code(code)))
+            #[allow(non_upper_case_globals)]
+            let modifier_mask = match code {
+                kVK_Control => 0x00000001,
+                kVK_Shift => 0x00000002,
+                kVK_RightShift => 0x00000004,
+                kVK_Command => 0x00000008,
+                kVK_RightCommand => 0x00000010,
+                kVK_Option => 0x00000020,
+                kVK_RightOption => 0x00000040,
+                kVK_RightControl => 0x00002000,
+                kVK_CapsLock => 0x00010000,
+                kVK_Function => 0x00800000,
+                _ => 0,
+            };
+            let pressed = if modifier_mask == 0 {
+                CGEventSourceKeyState(CGEventSourceStateID::HIDSystemState, code)
             } else {
-                LAST_FLAGS = flags;
+                cg_event.get_flags().bits() & modifier_mask != 0
+            };
+
+            if pressed {
                 Some(EventType::KeyPress(key_from_code(code)))
+            } else {
+                Some(EventType::KeyRelease(key_from_code(code)))
             }
         }
         CGEventType::ScrollWheel => {
