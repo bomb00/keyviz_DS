@@ -102,7 +102,7 @@ pub fn run() {
         .setup(|app| {
             #[cfg(target_os = "macos")]
             if !get_dock_icon_visibility(app.handle().clone()) {
-                app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+                app.set_dock_visibility(false);
             }
 
             // prepare window

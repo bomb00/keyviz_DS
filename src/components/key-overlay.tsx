@@ -16,6 +16,7 @@ const fadeVariants: Variants = {
 export const KeyOverlay = () => {
     const pressedKeys = useKeyEvent(state => state.pressedKeys);
     const groups = useKeyEvent(state => state.groups);
+    const filter = useKeyEvent(state => state.filter);
     const showHistory = useKeyEvent(state => state.showEventHistory);
 
     const appearance = useKeyStyle(state => state.appearance);
@@ -27,6 +28,10 @@ export const KeyOverlay = () => {
     const alignment = appearance.flexDirection === "row"
         ? alignmentForRow[appearance.alignment]
         : alignmentForColumn[appearance.alignment];
+
+    const visibleGroups = filter === "modifiers"
+        ? groups.filter(group => group.keys.some(key => !key.isModifier()))
+        : groups;
 
     const containerStyle = {
         flexDirection: appearance.flexDirection,
@@ -94,7 +99,7 @@ export const KeyOverlay = () => {
     if (appearance.animation === "none") {
         return (
             <div className="w-full h-full flex" style={containerStyle}>
-                {groups.map((group, groupIndex) => {
+                {visibleGroups.map((group, groupIndex) => {
                     const caption = showCaptions ? getCaption(group.keys) : null;
                     return (
                         <div key={group.createdAt} style={captionGroupStyle}>
@@ -107,7 +112,7 @@ export const KeyOverlay = () => {
                                         key={event.name}
                                         event={event}
                                         lastest={group.keys.length - 1 === keyIndex}
-                                        isPressed={groups.length - 1 === groupIndex && event.in(pressedKeys)}
+                                        isPressed={visibleGroups.length - 1 === groupIndex && event.in(pressedKeys)}
                                     />
                                 ))}
                             </div>
@@ -122,7 +127,7 @@ export const KeyOverlay = () => {
     return (
         <div className="w-full h-full flex" style={containerStyle}>
             <AnimatePresence>
-                {groups.map((group, groupIndex) => {
+                {visibleGroups.map((group, groupIndex) => {
                     const caption = showCaptions ? getCaption(group.keys) : null;
                     return (
                         <motion.div
@@ -160,7 +165,7 @@ export const KeyOverlay = () => {
                                             <Keycap
                                                 event={event}
                                                 lastest={group.keys.length - 1 === keyIndex}
-                                                isPressed={groups.length - 1 === groupIndex && event.in(pressedKeys)}
+                                                isPressed={visibleGroups.length - 1 === groupIndex && event.in(pressedKeys)}
                                             />
                                         </motion.div>
                                     ))}

@@ -78,12 +78,8 @@ pub fn get_dock_icon_visibility(app: tauri::AppHandle) -> bool {
 #[tauri::command]
 pub fn set_dock_icon_visibility(app: tauri::AppHandle, visible: bool) -> Result<(), String> {
     #[cfg(target_os = "macos")]
-    app.set_activation_policy(if visible {
-        tauri::ActivationPolicy::Regular
-    } else {
-        tauri::ActivationPolicy::Accessory
-    })
-    .map_err(|error| error.to_string())?;
+    app.set_dock_visibility(visible)
+        .map_err(|error| error.to_string())?;
 
     let store = app.store("store.json").map_err(|error| error.to_string())?;
     store.set("show_dock_icon", visible);
