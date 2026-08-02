@@ -12,3 +12,12 @@
 - Shift 표시 수정. Shift가 Command보다 먼저 눌려도 현재 물리 입력 전체로 표시 그룹을 시작해 `Command + Shift + 문자` 조합에서 Shift가 빠지지 않도록 수정했습니다.
 - macOS 입력 안정성. modifier별 기기 플래그로 좌우 키 상태를 판정하고, macOS가 이벤트 탭을 비활성화하면 즉시 다시 활성화하도록 수정했습니다.
 - 최종 검증. TypeScript 타입 검사, Vite 프로덕션 빌드, Rust `cargo check`, 앱 서명 검증을 통과했으며 `/Applications/keyviz.app`에 설치해 실제 입력을 확인했습니다. 프로젝트에는 lint 스크립트가 없고 DMG 포장 스크립트는 기존 오류로 실패했습니다.
+
+## 2026-08-02. 눌린 채 남는 키 자동 해제.
+
+- 변경 파일. `src/stores/key_event.ts`, `src-tauri/src/app/commands.rs`, `src-tauri/src/lib.rs`를 변경했습니다.
+- 문제. 키를 뗄 때 release 이벤트가 유실되면 해당 키가 눌린 상태로 남아 화면에서 사라지지 않았습니다.
+- 프론트 처리. 키별 누른 시각을 `pressedAt`에 기록하고 `tick()`에서 `MAX_KEY_HOLD_MS`(30초)를 넘긴 키를 강제로 해제하도록 수정했습니다.
+- 백엔드 처리. `clear_pressed_keys` 커맨드를 추가해 Rust 쪽 `pressed_keys` 상태에서도 같은 키를 함께 제거하도록 수정했습니다.
+- 저장 제외. `pressedAt`은 물리 상태이므로 `partialize`에서 제외해 영구 저장되지 않도록 했습니다.
+- 검증. TypeScript 타입 검사(에러 0), Vite 프로덕션 빌드(종료 코드 0), Rust `cargo check`(종료 코드 0)를 통과했습니다.

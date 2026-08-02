@@ -13,7 +13,7 @@ use tauri::{
 
 mod app;
 use app::commands::{
-    get_dock_icon_visibility, log, set_dock_icon_visibility, set_follow_cursor,
+    clear_pressed_keys, get_dock_icon_visibility, log, set_dock_icon_visibility, set_follow_cursor,
     set_main_window_monitor, set_toggle_shortcut,
 };
 use app::event::start_listener;
@@ -134,6 +134,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             log,
             set_toggle_shortcut,
+            clear_pressed_keys,
             set_main_window_monitor,
             set_follow_cursor,
             get_dock_icon_visibility,

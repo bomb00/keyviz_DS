@@ -18,6 +18,13 @@ pub fn set_toggle_shortcut(app: tauri::AppHandle, shortcut: Vec<String>) {
 }
 
 #[tauri::command]
+pub fn clear_pressed_keys(app: tauri::AppHandle, keys: Vec<String>) {
+    let state = app.state::<Mutex<AppState>>();
+    let mut app_state = state.lock().unwrap();
+    app_state.pressed_keys.retain(|key| !keys.contains(key));
+}
+
+#[tauri::command]
 pub fn set_main_window_monitor(app: tauri::AppHandle, monitor_name: String) {
     let state = app.state::<Mutex<AppState>>();
     let mut app_state = state.lock().unwrap();

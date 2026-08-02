@@ -1,4 +1,5 @@
 import { EventPayload, KeyEvent, MappedKeys, MouseButton, MouseButtonEvent, MouseMoveEvent, MouseWheelEvent, RawKey, RawKeyEvent, TRIGGER_MODIFIERS } from "@/types/event";
+import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { tauriStorage } from "./storage";
@@ -7,6 +8,7 @@ import { createSyncedStore } from "./sync";
 
 export const KEY_EVENT_STORE = "key_event_store";
 const SCROLL_LINGER_MS = 300;
+const MAX_KEY_HOLD_MS = 30_000;
 
 interface KeyGroup {
     keys: KeyEvent[];
@@ -16,6 +18,7 @@ interface KeyGroup {
 export interface KeyEventState {
     // ───────────── physical state ─────────────
     pressedKeys: string[];
+    pressedAt: Record<string, number>;
     pressedMouseButton: MouseButton | null;
     mouse: {
         x: number;
@@ -68,6 +71,7 @@ const createKeyEventStore = createSyncedStore<KeyEventStore>(
     KEY_EVENT_STORE,
     (set, get) => ({
         pressedKeys: <string[]>[],
+        pressedAt: {},
         pressedMouseButton: null,
         mouse: { x: 0, y: 0, wheel: 0, dragging: false },
         groups: <KeyGroup[]>[],
@@ -145,10 +149,11 @@ const createKeyEventStore = createSyncedStore<KeyEventStore>(
             // 0. track physical state
             const pressedKeys = [...state.pressedKeys];
             pressedKeys.push(event.name);
+            const pressedAt = { ...state.pressedAt, [event.name]: Date.now() };
 
             // 1. filter event
             if (state.filter !== "none" && state.ignoreEvent(pressedKeys)) {
-                set({ pressedKeys });
+                set({ pressedKeys, pressedAt });
                 return;
             }
 
@@ -166,7 +171,7 @@ const createKeyEventStore = createSyncedStore<KeyEventStore>(
                 if (state.showEventHistory && groups.length > state.maxHistory) {
                     groups = groups.slice(groups.length - state.maxHistory);
                 }
-                set({ pressedKeys, groups });
+                set({ pressedKeys, pressedAt, groups });
                 return;
             }
 
@@ -228,7 +233,7 @@ const createKeyEventStore = createSyncedStore<KeyEventStore>(
                 groups = groups.slice(groups.length - state.maxHistory);
             }
 
-            set({ pressedKeys, groups });
+            set({ pressedKeys, pressedAt, groups });
         },
         ignoreEvent(pressedKeys) {
             const state = get();
@@ -246,6 +251,8 @@ const createKeyEventStore = createSyncedStore<KeyEventStore>(
             const state = get();
             // track physical state
             const pressedKeys = state.pressedKeys.filter(keyName => keyName !== event.name);
+            const pressedAt = { ...state.pressedAt };
+            delete pressedAt[event.name];
 
             // update last pressed time
             const groups = [...state.groups];
@@ -263,9 +270,9 @@ const createKeyEventStore = createSyncedStore<KeyEventStore>(
                 } else if (!state.releaseTogether) {
                     groups[last].keys[kIndex].lastPressedAt = releasedAt;
                 }
-                set({ pressedKeys, groups });
+                set({ pressedKeys, pressedAt, groups });
             } else {
-                set({ pressedKeys });
+                set({ pressedKeys, pressedAt });
             }
         },
         onMouseMove(event: MouseMoveEvent) {
@@ -381,12 +388,23 @@ const createKeyEventStore = createSyncedStore<KeyEventStore>(
             set({ mouse });
         },
         tick() {
-            // todo: remove pressed keys with unsually long linger duration
             const state = get();
             const now = Date.now();
             let notify = false;
 
             const groups = <KeyGroup[]>[];
+
+            // release 이벤트가 누락돼 비정상적으로 오래 남은 키를 양쪽 상태에서 해제한다.
+            const staleKeys = Object.entries(state.pressedAt)
+                .filter(([, pressedAt]) => now - pressedAt > MAX_KEY_HOLD_MS)
+                .map(([keyName]) => keyName);
+            if (staleKeys.length > 0) {
+                staleKeys.forEach(keyName => {
+                    state.onKeyRelease({ type: "KeyEvent", name: keyName, pressed: false });
+                });
+                void invoke("clear_pressed_keys", { keys: staleKeys });
+                return;
+            }
 
             // handle scroll linger
             if (state.mouse.lastScrollAt && now - state.mouse.lastScrollAt > SCROLL_LINGER_MS) {
@@ -431,7 +449,7 @@ const createKeyEventStore = createSyncedStore<KeyEventStore>(
         name: KEY_EVENT_STORE,
         storage: createJSONStorage(() => tauriStorage),
         partialize: (state) => {
-            const { pressedKeys, pressedMouseButton, mouse, groups, settingsOpen, ...persistedState } = state;
+            const { pressedKeys, pressedAt, pressedMouseButton, mouse, groups, settingsOpen, ...persistedState } = state;
             return persistedState;
         },
     }),
